@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres:postgres@localhost:5432/amazon_reviews?schema=public"
+}
+
+model Category {
+  id         String     @id @default(uuid())
+  name       String
+  slug       String     @unique
+  amazonPath String?
+  parentId   String?
+  parent     Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children   Category[] @relation("CategoryTree")
+  products   Product[]
+  createdAt  DateTime   @default(now())
+
+  @@index([parentId])
+  @@index([slug])
+}
+
+model Product {
+  id        String   @id @default(uuid())
+  asin      String   @unique
+  title     String
+  price     Decimal? @db.Decimal(10, 2)
+  currency  String?  @default("USD")
+  imageUrl  String?
+  amazonUrl String?
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  avgRating    Float?
+  totalReviews Int    @default(0)
+
+  lastScrapedAt DateTime?
+
+  reviews    Review[]
+  scrapeJobs ScrapeJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([avgRating])
+  @@index([lastScrapedAt])
+}
+
+model Review {
+  id             String @id @default(uuid())
+  amazonReviewId String @unique
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  rating     Int
+  title      String?
+  content    String?   @db.Text
+  reviewDate DateTime?
+  isVerified Boolean   @default(false)
+
+  reviewerName    String?
+  reviewerProfile String?
+
+  helpfulVotes Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([productId, rating])
+  @@index([productId, reviewDate])
+  @@index([rating])
+  @@index([reviewDate])
+}
+
+model ScrapeJob {
+  id     String     @id @default(uuid())
+  type   ScrapeType
+  status JobStatus  @default(PENDING)
+
+  categorySlug String?
+  productId    String?
+  product      Product? @relation(fields: [productId], references: [id])
+
+  itemsFound   Int?
+  itemsSaved   Int?
+  pagesScraped Int?
+  errorMessage String? @db.Text
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum ScrapeType {
+  CATEGORY
+  PRODUCT
+  REVIEWS
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  SKIPPED
+}
